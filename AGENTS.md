@@ -19,9 +19,9 @@ go build -o do
 Config via environment (or `.env`, which is gitignored):
 
 ```
-LLM_BASE_URL=https://api.openai.com/v1   # or http://localhost:11434/v1 (Ollama), etc.
-LLM_API_KEY=sk-...
-LLM_MODEL=gpt-4o
+DO_BASE_URL=https://api.openai.com/v1   # or http://localhost:11434/v1 (Ollama), etc.
+DO_API_KEY=sk-...
+DO_MODEL=gpt-4o
 ```
 
 ## Layout

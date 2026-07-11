@@ -2,7 +2,7 @@ package main
 
 // Minimal OpenAI-compatible chat completions client with tool calling.
 // Works with OpenAI, OpenRouter, local servers (Ollama, LM Studio), etc.
-// Configure via env: LLM_BASE_URL, LLM_API_KEY, LLM_MODEL.
+// Configure via env: DO_BASE_URL, DO_API_KEY, DO_MODEL.
 
 import (
 	"bytes"
@@ -56,17 +56,17 @@ type LLMClient struct {
 }
 
 func newLLMClient() *LLMClient {
-	base := os.Getenv("LLM_BASE_URL")
+	base := os.Getenv("DO_BASE_URL")
 	if base == "" {
 		base = "https://api.openai.com/v1"
 	}
-	model := os.Getenv("LLM_MODEL")
+	model := os.Getenv("DO_MODEL")
 	if model == "" {
 		model = "gpt-4o"
 	}
 	return &LLMClient{
 		BaseURL: base,
-		APIKey:  os.Getenv("LLM_API_KEY"),
+		APIKey:  os.Getenv("DO_API_KEY"),
 		Model:   model,
 		HTTP:    &http.Client{Timeout: 5 * time.Minute},
 	}

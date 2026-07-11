@@ -20,12 +20,12 @@ go build -o do
 ## Configure
 
 ```sh
-export LLM_BASE_URL=https://api.openai.com/v1   # default
-export LLM_API_KEY=sk-...
-export LLM_MODEL=gpt-4o                          # default
+export DO_BASE_URL=https://api.openai.com/v1   # default
+export DO_API_KEY=sk-...
+export DO_MODEL=gpt-4o                          # default
 ```
 
-Point `LLM_BASE_URL` at a local server (e.g. `http://localhost:11434/v1` for Ollama, `http://localhost:1234/v1` for LM Studio) and drop the key.
+Point `DO_BASE_URL` at a local server (e.g. `http://localhost:11434/v1` for Ollama, `http://localhost:1234/v1` for LM Studio) and drop the key.
 
 ## Run
 
