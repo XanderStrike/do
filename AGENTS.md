@@ -45,10 +45,6 @@ That's the whole codebase — three files, ~450 LOC. Keep it minimal.
 - A package-level `prog *tea.Program` lets the goroutine send messages
   (`assistantMsg`, `toolStartMsg`, `toolResultMsg`, `errMsg`, `doneMsg`) back
   to the UI.
-- `contextWithTimeout` in main.go is a thin wrapper so tools.go can use context
-  without importing it directly. This is a stylistic preference, not a hard
-  rule — feel free to import context in tools.go if that's cleaner.
-
 ## Conventions
 
 - **Minimalism is the point.** Don't add dependencies or abstractions unless
@@ -63,15 +59,15 @@ That's the whole codebase — three files, ~450 LOC. Keep it minimal.
 
 ## Known gotchas
 
-- `truncate` is byte-based, not rune-based — it can split a multi-byte UTF-8
-  character.
+- `truncate` is rune-based but truncates at rune count, not display width —
+  wide CJK/emoji characters will still overflow expected column boundaries.
 - No tests exist yet. If you change logic, consider adding a test.
-- The agent loop has no turn/cost limit — a misbehaving model could loop
-  indefinitely calling tools.
+- The agent loop caps at `maxTurns` (50) tool-call iterations per turn to
+  prevent runaway loops.
 - `edit_file` rejects matches that aren't unique. This is intentional; don't
   relax it without reason.
-- Esc/Ctrl+C is ignored while `busy` (mid-turn) so the user can't quit during
-  a tool execution.
+- Esc stops generation when busy (mid-turn), or quits when idle. Ctrl+C always
+  force-quits immediately.
 
 ## Things you might be asked to do
 

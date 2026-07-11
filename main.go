@@ -11,7 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
+	"unicode/utf8"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textarea"
@@ -41,6 +41,7 @@ type model struct {
 	width     int
 	height    int
 	err       string
+	cancel    context.CancelFunc // cancel the current agent turn (nil if idle)
 }
 
 // Messages exchanged between the agent goroutine and the TUI.
@@ -49,6 +50,7 @@ type toolStartMsg struct{ name, args string }
 type toolResultMsg struct{ name, args, result string }
 type errMsg struct{ err error }
 type doneMsg struct{}
+type stopMsg struct{} // user pressed Esc to stop generation
 
 func initialModel() model {
 	cwd, _ := os.Getwd()
@@ -57,7 +59,7 @@ func initialModel() model {
 	vp.SetContent("")
 
 	ta := textarea.New()
-	ta.Placeholder = "Ask me to build something... (Enter to send, Ctrl+C to quit)"
+	ta.Placeholder = "Ask me to build something... (Enter to send, Esc to stop/quit, Ctrl+C to force quit)"
 	ta.Focus()
 	ta.CharLimit = 0
 	ta.ShowLineNumbers = false
@@ -158,9 +160,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		switch msg.Type {
-		case tea.KeyCtrlC, tea.KeyEsc:
+		case tea.KeyCtrlC:
+			return m, tea.Quit
+		case tea.KeyEsc:
 			if m.busy {
-				return m, nil // don't quit mid-turn
+				if m.cancel != nil {
+					m.cancel()
+				}
+				return m, nil // stop generation, don't quit
 			}
 			return m, tea.Quit
 		case tea.KeyEnter:
@@ -197,6 +204,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case doneMsg:
 		m.busy = false
 		m.err = ""
+		m.cancel = nil
+
+	case stopMsg:
+		m.busy = false
+		m.err = ""
+		m.cancel = nil
 	}
 
 	// Forward to textarea. Only forward non-key messages to the viewport —
@@ -244,7 +257,9 @@ func (m *model) submit(input string) {
 
 	// Launch the agent turn in a goroutine, streaming progress back via msgs.
 	p := m.program()
-	go runAgent(p, m.llm, m.conv, m.cwd)
+	ctx, cancel := context.WithCancel(context.Background())
+	m.cancel = cancel
+	go runAgent(p, m.llm, m.conv, m.cwd, ctx)
 }
 
 // program returns the current tea.Program. We grab it via a package-level
@@ -253,13 +268,19 @@ func (m *model) program() *tea.Program { return prog }
 
 var prog *tea.Program
 
+const maxTurns = 50
+
 // runAgent loops: ask the LLM, execute any tool calls, repeat until the LLM
-// replies with plain text and no tool calls.
-func runAgent(p *tea.Program, llm *LLMClient, conv *[]Message, cwd string) {
+// replies with plain text and no tool calls. Caps at maxTurns iterations.
+func runAgent(p *tea.Program, llm *LLMClient, conv *[]Message, cwd string, ctx context.Context) {
 	saveSession(cwd, conv)
-	for {
-		resp, err := llm.Complete(*conv)
+	for i := 0; i < maxTurns; i++ {
+		resp, err := llm.Complete(ctx, *conv)
 		if err != nil {
+			if ctx.Err() != nil {
+				p.Send(stopMsg{})
+				return
+			}
 			p.Send(errMsg{err})
 			return
 		}
@@ -275,8 +296,13 @@ func runAgent(p *tea.Program, llm *LLMClient, conv *[]Message, cwd string) {
 		}
 
 		for _, tc := range resp.ToolCalls {
+			// Stop before running more tools if the user cancelled.
+			if ctx.Err() != nil {
+				p.Send(stopMsg{})
+				return
+			}
 			p.Send(toolStartMsg{name: tc.Function.Name, args: tc.Function.Arguments})
-			result := runTool(tc.Function.Name, tc.Function.Arguments)
+			result := runTool(ctx, tc.Function.Name, tc.Function.Arguments)
 			p.Send(toolResultMsg{name: tc.Function.Name, args: tc.Function.Arguments, result: result})
 			*conv = append(*conv, Message{
 				Role:       "tool",
@@ -286,6 +312,7 @@ func runAgent(p *tea.Program, llm *LLMClient, conv *[]Message, cwd string) {
 			saveSession(cwd, conv)
 		}
 	}
+	p.Send(errMsg{fmt.Errorf("turn limit (%d) reached", maxTurns)})
 }
 
 func (m model) View() string {
@@ -317,8 +344,8 @@ func indent(s string) string {
 
 func truncateOneLine(s string) string {
 	s = strings.ReplaceAll(s, "\n", " ")
-	if len(s) > 200 {
-		return s[:200] + "..."
+	if utf8.RuneCountInString(s) > 200 {
+		return string([]rune(s)[:200]) + "..."
 	}
 	return s
 }
@@ -344,11 +371,6 @@ func renderHistoryBlock(msg Message) string {
 	default:
 		return ""
 	}
-}
-
-// contextWithTimeout is a tiny helper so tools.go doesn't import context itself.
-func contextWithTimeout(d time.Duration) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(context.Background(), d)
 }
 
 func main() {

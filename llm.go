@@ -6,6 +6,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -73,7 +74,7 @@ func newLLMClient() *LLMClient {
 
 // Complete sends the conversation and returns the assistant's message
 // (which may contain content and/or tool_calls).
-func (c *LLMClient) Complete(messages []Message) (Message, error) {
+func (c *LLMClient) Complete(ctx context.Context, messages []Message) (Message, error) {
 	body, err := json.Marshal(completionRequest{
 		Model:    c.Model,
 		Messages: messages,
@@ -83,7 +84,7 @@ func (c *LLMClient) Complete(messages []Message) (Message, error) {
 		return Message{}, err
 	}
 
-	req, err := http.NewRequest("POST", c.BaseURL+"/chat/completions", bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, "POST", c.BaseURL+"/chat/completions", bytes.NewReader(body))
 	if err != nil {
 		return Message{}, err
 	}

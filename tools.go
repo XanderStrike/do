@@ -4,12 +4,15 @@ package main
 // read_file, write_file, edit_file, and shell.
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 // Tool is an OpenAI-style function tool definition.
@@ -111,7 +114,7 @@ func tools() []Tool {
 
 // runTool executes a tool call by name with raw JSON arguments and returns a
 // string result (or an error message, which is also just a string for the LLM).
-func runTool(name, argsJSON string) string {
+func runTool(ctx context.Context, name, argsJSON string) string {
 	switch name {
 	case "read_file":
 		var a struct {
@@ -134,7 +137,7 @@ func runTool(name, argsJSON string) string {
 		if err := json.Unmarshal([]byte(argsJSON), &a); err != nil {
 			return "error parsing arguments: " + err.Error()
 		}
-		if err := os.MkdirAll(parentDir(a.Path), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(a.Path), 0o755); err != nil {
 			return "error creating dirs: " + err.Error()
 		}
 		if err := os.WriteFile(a.Path, []byte(a.Content), 0o644); err != nil {
@@ -160,7 +163,7 @@ func runTool(name, argsJSON string) string {
 		if err := json.Unmarshal([]byte(argsJSON), &a); err != nil {
 			return "error parsing arguments: " + err.Error()
 		}
-		ctx, cancel := contextWithTimeout(60 * time.Second)
+		ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
 		defer cancel()
 		cmd := exec.CommandContext(ctx, "bash", "-c", a.Command)
 		out, err := cmd.CombinedOutput()
@@ -206,20 +209,10 @@ func editFile(path, oldStr, newStr string) string {
 	return fmt.Sprintf("edited %s (replaced %d bytes with %d bytes)", path, len(oldStr), len(newStr))
 }
 
-func parentDir(p string) string {
-	if i := strings.LastIndexByte(p, '/'); i >= 0 {
-		if i == 0 {
-			return "/"
-		}
-		return p[:i]
-	}
-	// No slash: treat as a file in cwd. MkdirAll("") is a no-op anyway.
-	return ""
-}
-
 func truncate(s string, n int) string {
-	if len(s) <= n {
+	if utf8.RuneCountInString(s) <= n {
 		return s
 	}
-	return s[:n] + "\n...[truncated]"
+	r := []rune(s)
+	return string(r[:n]) + "\n...[truncated]"
 }
