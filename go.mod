@@ -1,4 +1,4 @@
-module lkj
+module do
 
 go 1.23
 

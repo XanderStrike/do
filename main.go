@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -65,7 +66,7 @@ func initialModel() model {
 	sp := spinner.New()
 	sp.Spinner = spinner.Dot
 
-	msgs := []Message{{Role: "system", Content: systemPrompt(cwd)}}
+	msgs := []Message{{Role: "system", Content: systemPrompt(cwd, loadAgentsContext(cwd))}}
 	return model{
 		llm:      newLLMClient(),
 		cwd:      cwd,
@@ -77,8 +78,8 @@ func initialModel() model {
 	}
 }
 
-func systemPrompt(cwd string) string {
-	return fmt.Sprintf(`You are a minimal terminal coding agent. You operate inside the directory: %s
+func systemPrompt(cwd, agentsContext string) string {
+	prompt := fmt.Sprintf(`You are a minimal terminal coding agent. You operate inside the directory: %s
 
 You have four tools:
 - read_file(path): read a file's contents
@@ -89,6 +90,44 @@ You have four tools:
 Use the tools to inspect, edit, and run code to fulfill the user's request. Be concise.
 Prefer reading files before editing. Prefer shell commands like ls, rg, git to explore.
 When you make changes, summarize what you did briefly.`, cwd)
+	if agentsContext != "" {
+		prompt += "\n\n" + agentsContext
+	}
+	return prompt
+}
+
+// loadAgentsContext reads AGENTS.md files from cwd up to the filesystem root
+// and concatenates them root-first so the nearest (cwd) file is last (most
+// specific). Returns an empty string if none are found.
+func loadAgentsContext(cwd string) string {
+	var paths []string
+	dir := cwd
+	for {
+		paths = append(paths, filepath.Join(dir, "AGENTS.md"))
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
+	}
+
+	var parts []string
+	// Walk root-first so cwd's AGENTS.md appears last (most specific wins).
+	for i := len(paths) - 1; i >= 0; i-- {
+		data, err := os.ReadFile(paths[i])
+		if err != nil {
+			continue
+		}
+		s := strings.TrimSpace(string(data))
+		if s == "" {
+			continue
+		}
+		parts = append(parts, s)
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return "# AGENTS.md context\n\n" + strings.Join(parts, "\n\n---\n\n")
 }
 
 func (m model) Init() tea.Cmd {

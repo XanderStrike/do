@@ -1,4 +1,4 @@
-# lkj
+# do
 
 A super-minimal terminal coding agent (a tiny pi clone) built with Go + [Bubble Tea](https://github.com/charmbracelet/bubbletea).
 
@@ -14,7 +14,7 @@ Talks to any OpenAI-compatible chat completions endpoint (OpenAI, OpenRouter, Ol
 ## Build
 
 ```sh
-go build -o lkj
+go build -o do
 ```
 
 ## Configure
@@ -30,7 +30,7 @@ Point `LLM_BASE_URL` at a local server (e.g. `http://localhost:11434/v1` for Oll
 ## Run
 
 ```sh
-./lkj
+./do
 ```
 
 Type a request, hit Enter. The agent loops over tool calls until it's done. Esc or Ctrl+C to quit.
