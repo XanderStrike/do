@@ -6,17 +6,8 @@ on:
       - "v*"
 
 jobs:
-  build:
+  release:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        include:
-          - goos: linux
-            goarch: arm64
-          - goos: linux
-            goarch: amd64
-          - goos: darwin
-            goarch: arm64
     steps:
       - uses: actions/checkout@v4
 
@@ -24,42 +15,20 @@ jobs:
         with:
           go-version: "1.23"
 
-      - name: Build
-        env:
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
-          CGO_ENABLED: "0"
+      - name: Build all targets
         run: |
           mkdir -p dist
-          BINARY_NAME="do-${{ matrix.goos }}-${{ matrix.goarch }}"
-          go build -ldflags="-s -w" -o "dist/${BINARY_NAME}" .
-          echo "BINARY_NAME=${BINARY_NAME}" >> $GITHUB_ENV
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.goos }}-${{ matrix.goarch }}
-          path: dist/${{ env.BINARY_NAME }}
-
-  release:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/download-artifact@v4
-        with:
-          path: dist
-          merge-multiple: true
+          for target in "linux arm64" "linux amd64" "darwin arm64"; do
+            set -- $target
+            GOOS=$1 GOARCH=$2 CGO_ENABLED=0 go build -ldflags="-s -w" -o "dist/do-$1-$2" .
+            echo "Built dist/do-$1-$2"
+          done
 
       - name: Create release and upload assets
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Gitea's API is GitHub-compatible; the gh CLI works against it
-          # when GH_HOST is set to the Gitea server.
           export GH_HOST=git.standke.dev
           gh release create "${{ github.ref_name }}" dist/* \
             --title "${{ github.ref_name }}" \
-            --notes "Release ${{ github.ref_name }}" \
-            --generate-notes
+            --notes "Release ${{ github.ref_name }}"
