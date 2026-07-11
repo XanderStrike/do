@@ -2,7 +2,7 @@ package main
 
 // A super-minimal terminal coding agent (a tiny pi clone) built with Bubble Tea.
 //
-// Three tools only: read_file, write_file, shell. Talks to any OpenAI-compatible
+// Four tools: read_file, write_file, edit_file, shell. Talks to any OpenAI-compatible
 // chat completions endpoint. See README.md for config.
 
 import (
@@ -80,9 +80,10 @@ func initialModel() model {
 func systemPrompt(cwd string) string {
 	return fmt.Sprintf(`You are a minimal terminal coding agent. You operate inside the directory: %s
 
-You have three tools:
+You have four tools:
 - read_file(path): read a file's contents
 - write_file(path, content): write a file (creates parents, overwrites)
+- edit_file(path, old_string, new_string): surgical find-and-replace in a file (old_string must match uniquely)
 - shell(command): run a shell command via bash -c
 
 Use the tools to inspect, edit, and run code to fulfill the user's request. Be concise.

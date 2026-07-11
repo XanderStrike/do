@@ -1,7 +1,7 @@
 package main
 
-// Tool definitions and dispatch for the three tools the agent can use:
-// read_file, write_file, and shell.
+// Tool definitions and dispatch for the four tools the agent can use:
+// read_file, write_file, edit_file, and shell.
 
 import (
 	"encoding/json"
@@ -67,6 +67,31 @@ func tools() []Tool {
 		{
 			Type: "function",
 			Function: Function{
+				Name:        "edit_file",
+				Description: "Edit a file by replacing an exact string. The old_string must appear exactly once in the file (unique match) so the edit is unambiguous. The new_string replaces it. Useful for small surgical edits without rewriting the whole file. Prefer read_file before editing.",
+				Parameters: map[string]any{
+					"type": "object",
+					"properties": map[string]any{
+						"path": map[string]any{
+							"type":        "string",
+							"description": "Path to the file to edit. Relative paths are resolved against the working directory.",
+						},
+						"old_string": map[string]any{
+							"type":        "string",
+							"description": "The exact text to find in the file. Must match uniquely (exactly one occurrence).",
+						},
+						"new_string": map[string]any{
+							"type":        "string",
+							"description": "The replacement text that replaces old_string.",
+						},
+					},
+					"required": []string{"path", "old_string", "new_string"},
+				},
+			},
+		},
+		{
+			Type: "function",
+			Function: Function{
 				Name:        "shell",
 				Description: "Run a shell command via `bash -c`. Returns combined stdout and stderr. Use for running programs, git, listing files, etc. Commands run in the working directory.",
 				Parameters: map[string]any{
@@ -117,6 +142,17 @@ func runTool(name, argsJSON string) string {
 		}
 		return fmt.Sprintf("wrote %d bytes to %s", len(a.Content), a.Path)
 
+	case "edit_file":
+		var a struct {
+			Path      string `json:"path"`
+			OldString string `json:"old_string"`
+			NewString string `json:"new_string"`
+		}
+		if err := json.Unmarshal([]byte(argsJSON), &a); err != nil {
+			return "error parsing arguments: " + err.Error()
+		}
+		return editFile(a.Path, a.OldString, a.NewString)
+
 	case "shell":
 		var a struct {
 			Command string `json:"command"`
@@ -143,6 +179,31 @@ func runTool(name, argsJSON string) string {
 	default:
 		return "unknown tool: " + name
 	}
+}
+
+// editFile performs an exact find-and-replace in a file. The old_string must
+// appear exactly once so the edit is unambiguous. Returns a short summary on
+// success or an error message string.
+func editFile(path, oldStr, newStr string) string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "error: " + err.Error()
+	}
+	content := string(data)
+
+	count := strings.Count(content, oldStr)
+	if count == 0 {
+		return "error: old_string not found in " + path + ". Make sure it matches the file exactly (whitespace, indentation, etc.)."
+	}
+	if count > 1 {
+		return fmt.Sprintf("error: old_string appears %d times in %s. Provide more context so it matches uniquely.", count, path)
+	}
+
+	updated := strings.Replace(content, oldStr, newStr, 1)
+	if err := os.WriteFile(path, []byte(updated), 0o644); err != nil {
+		return "error: " + err.Error()
+	}
+	return fmt.Sprintf("edited %s (replaced %d bytes with %d bytes)", path, len(oldStr), len(newStr))
 }
 
 func parentDir(p string) string {

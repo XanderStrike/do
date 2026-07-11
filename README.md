@@ -2,9 +2,10 @@
 
 A super-minimal terminal coding agent (a tiny pi clone) built with Go + [Bubble Tea](https://github.com/charmbracelet/bubbletea).
 
-Three tools, that's it:
+Four tools, that's it:
 
 - `read_file(path)`
+- `edit_file(path, old_string, new_string)`
 - `write_file(path, content)`
 - `shell(command)`
 
