@@ -18,6 +18,7 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 )
 
 var (
@@ -240,14 +241,18 @@ func (m *model) idle() {
 }
 
 func (m *model) refreshViewport() {
-	// Pad with blank lines at the bottom so the last output isn't covered
-	// by the status bar and textarea below the viewport.
-	padding := strings.Repeat("\n", inputHeight)
-	m.viewport.SetContent(strings.Join(m.blocks, "\n\n") + padding)
+	// Pre-wrap content to the viewport width. The viewport's own rendering
+	// applies lipgloss Width+MaxWidth, which wraps long lines for *height
+	// counting* while truncating them for display — so its scroll math (based
+	// on unwrapped logical lines) underestimates visible height and GotoBottom
+	// leaves the last few lines clipped behind the status bar/textarea. Wrapping
+	// first makes logical lines == visual lines, keeping the math honest.
+	content := ansi.Wrap(strings.Join(m.blocks, "\n\n"), m.viewport.Width, "")
+	m.viewport.SetContent(content)
 	m.viewport.GotoBottom()
 }
 
-const inputHeight = 5 // status line + textarea
+const inputHeight = 5 // divider (1) + status line (1) + textarea (3)
 
 // submit starts an agent turn. It's a pointer receiver so it can mutate m
 // in place; this is safe because Update holds an addressable local m and
@@ -332,6 +337,8 @@ func (m model) View() string {
 
 	var b strings.Builder
 	b.WriteString(m.viewport.View())
+	b.WriteString("\n")
+	b.WriteString(dimStyle.Render(strings.Repeat("─", m.width)))
 	b.WriteString("\n")
 	b.WriteString(lipgloss.NewStyle().Width(m.width).Render(status))
 	b.WriteString("\n")
