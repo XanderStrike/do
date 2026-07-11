@@ -33,7 +33,7 @@ LLM_MODEL=gpt-4o
 | `tools.go`| Tool JSON-schema definitions + `runTool` dispatch + `editFile` helper. |
 | `session.go` | Session persistence: saves conversation to `.do-session` in cwd, auto-resumes. |
 
-That's the whole codebase — three files, ~450 LOC. Keep it minimal.
+That's the whole codebase — four files, ~760 LOC. Keep it minimal.
 
 ## Architecture
 
@@ -43,12 +43,15 @@ That's the whole codebase — three files, ~450 LOC. Keep it minimal.
   present, execute each via `runTool`, append tool results to history, repeat.
   When the LLM returns plain text with no tool calls, the turn is done.
 - A package-level `prog *tea.Program` lets the goroutine send messages
-  (`assistantMsg`, `toolStartMsg`, `toolResultMsg`, `errMsg`, `doneMsg`) back
-  to the UI.
+  (`assistantMsg`, `toolStartMsg`, `toolResultMsg`, `errMsg`, `doneMsg`,
+  `stopMsg`) back to the UI.
+- `do` reads `AGENTS.md` files from cwd up to the filesystem root and injects
+  them (root-first, cwd last) into the system prompt via `loadAgentsContext`.
+  This file is both agent guidance and live context for the running agent.
 ## Conventions
 
 - **Minimalism is the point.** Don't add dependencies or abstractions unless
-  they're clearly worth it. Three files is the right number of files.
+  they're clearly worth it. Four files is the right number of files.
 - **Error strings from tools are just strings.** `runTool` returns a string,
   not an error; error messages are prefixed with `"error:"` and fed back to
   the LLM as the tool result. Keep this pattern.
