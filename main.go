@@ -192,7 +192,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.appendBlock(toolStyle.Render("↳ " + msg.name + " ") + dimStyle.Render(truncateOneLine(msg.args)))
 
 	case toolResultMsg:
-		m.appendBlock(resultStyle.Render(indent(truncate(msg.result, 3000))))
+		m.appendBlock(resultStyle.Render(indent(truncateLines(msg.result, maxResultLines))))
 		m.refreshViewport()
 
 	case errMsg:
@@ -269,6 +269,7 @@ func (m *model) program() *tea.Program { return prog }
 var prog *tea.Program
 
 const maxTurns = 50
+const maxResultLines = 10 // cap tool result display in the viewport
 
 // runAgent loops: ask the LLM, execute any tool calls, repeat until the LLM
 // replies with plain text and no tool calls. Caps at maxTurns iterations.
@@ -350,6 +351,16 @@ func truncateOneLine(s string) string {
 	return s
 }
 
+// truncateLines truncates s to at most n lines, appending a truncation
+// indicator if lines were cut. Used for display only (e.g. read_file output).
+func truncateLines(s string, n int) string {
+	lines := strings.Split(s, "\n")
+	if len(lines) <= n {
+		return s
+	}
+	return strings.Join(lines[:n], "\n") + "\n...[truncated]"
+}
+
 // renderHistoryBlock renders a stored message for display when resuming a
 // session. Tool messages are shown as results; assistant messages with tool
 // calls show the call and its result (if any follows).
@@ -367,7 +378,7 @@ func renderHistoryBlock(msg Message) string {
 		}
 		return s
 	case "tool":
-		return resultStyle.Render(indent(truncate(msg.Content, 3000)))
+		return resultStyle.Render(indent(truncateLines(msg.Content, maxResultLines)))
 	default:
 		return ""
 	}

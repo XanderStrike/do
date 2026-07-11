@@ -56,7 +56,10 @@ That's the whole codebase — four files, ~760 LOC. Keep it minimal.
   not an error; error messages are prefixed with `"error:"` and fed back to
   the LLM as the tool result. Keep this pattern.
 - **Tool results get truncated** before display and before going into the
-  conversation (see `truncate` in tools.go and `truncateOneLine` in main.go).
+  conversation. The view caps results to `maxResultLines` (10) lines via
+  `truncateLines` in main.go; full content still goes to the LLM. `shell`
+  output is also capped in tools.go via `truncate`. `truncateOneLine` shortens
+  tool-call args in the view header.
 - Styling uses lipgloss color codes: user=63, assistant=36, tool=220,
   result=245, dim=241, error=203.
 
