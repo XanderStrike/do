@@ -31,6 +31,7 @@ LLM_MODEL=gpt-4o
 | `main.go` | Bubble Tea TUI: viewport, textarea, spinner. The agent loop goroutine + system prompt. |
 | `llm.go`  | HTTP client for `/chat/completions` with tool calling. `LLMClient`, `Message`, `ToolCall` types. |
 | `tools.go`| Tool JSON-schema definitions + `runTool` dispatch + `editFile` helper. |
+| `session.go` | Session persistence: saves conversation to `.do-session` in cwd, auto-resumes. |
 
 That's the whole codebase — three files, ~450 LOC. Keep it minimal.
 

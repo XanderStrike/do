@@ -67,7 +67,8 @@ func initialModel() model {
 	sp.Spinner = spinner.Dot
 
 	msgs := []Message{{Role: "system", Content: systemPrompt(cwd, loadAgentsContext(cwd))}}
-	return model{
+
+	m := model{
 		llm:      newLLMClient(),
 		cwd:      cwd,
 		conv:     &msgs,
@@ -76,6 +77,17 @@ func initialModel() model {
 		spinner:  sp,
 		blocks:   []string{dimStyle.Render("working dir: " + cwd)},
 	}
+
+	// Resume session if .do-session exists.
+	if prior := loadSession(cwd); len(prior) > 0 {
+		msgs = append(msgs, prior...)
+		for _, msg := range prior {
+			m.blocks = append(m.blocks, renderHistoryBlock(msg))
+		}
+		m.refreshViewport()
+	}
+
+	return m
 }
 
 func systemPrompt(cwd, agentsContext string) string {
@@ -221,12 +233,13 @@ func (m *model) submit(input string) {
 	m.busy = true
 	m.err = ""
 	*m.conv = append(*m.conv, Message{Role: "user", Content: input})
+	saveSession(m.cwd, m.conv)
 	m.appendBlock(userStyle.Render("● you") + "\n" + input)
 	m.refreshViewport()
 
 	// Launch the agent turn in a goroutine, streaming progress back via msgs.
 	p := m.program()
-	go runAgent(p, m.llm, m.conv)
+	go runAgent(p, m.llm, m.conv, m.cwd)
 }
 
 // program returns the current tea.Program. We grab it via a package-level
@@ -237,7 +250,8 @@ var prog *tea.Program
 
 // runAgent loops: ask the LLM, execute any tool calls, repeat until the LLM
 // replies with plain text and no tool calls.
-func runAgent(p *tea.Program, llm *LLMClient, conv *[]Message) {
+func runAgent(p *tea.Program, llm *LLMClient, conv *[]Message, cwd string) {
+	saveSession(cwd, conv)
 	for {
 		resp, err := llm.Complete(*conv)
 		if err != nil {
@@ -245,6 +259,7 @@ func runAgent(p *tea.Program, llm *LLMClient, conv *[]Message) {
 			return
 		}
 		*conv = append(*conv, resp)
+		saveSession(cwd, conv)
 
 		if resp.Content != "" {
 			p.Send(assistantMsg{resp.Content})
@@ -263,6 +278,7 @@ func runAgent(p *tea.Program, llm *LLMClient, conv *[]Message) {
 				ToolCallID: tc.ID,
 				Content:    result,
 			})
+			saveSession(cwd, conv)
 		}
 	}
 }
@@ -300,6 +316,29 @@ func truncateOneLine(s string) string {
 		return s[:200] + "..."
 	}
 	return s
+}
+
+// renderHistoryBlock renders a stored message for display when resuming a
+// session. Tool messages are shown as results; assistant messages with tool
+// calls show the call and its result (if any follows).
+func renderHistoryBlock(msg Message) string {
+	switch msg.Role {
+	case "user":
+		return userStyle.Render("● you") + "\n" + msg.Content
+	case "assistant":
+		s := assistantStyle.Render("● assistant")
+		if msg.Content != "" {
+			s += "\n" + msg.Content
+		}
+		for _, tc := range msg.ToolCalls {
+			s += "\n" + toolStyle.Render("↳ "+tc.Function.Name+" ") + dimStyle.Render(truncateOneLine(tc.Function.Arguments))
+		}
+		return s
+	case "tool":
+		return resultStyle.Render(indent(truncate(msg.Content, 3000)))
+	default:
+		return ""
+	}
 }
 
 // contextWithTimeout is a tiny helper so tools.go doesn't import context itself.

@@ -35,6 +35,8 @@ Point `LLM_BASE_URL` at a local server (e.g. `http://localhost:11434/v1` for Oll
 
 Type a request, hit Enter. The agent loops over tool calls until it's done. Esc or Ctrl+C to quit.
 
+Sessions auto-save to `.do-session` in the working directory and resume on next launch. Delete `.do-session` to start fresh.
+
 ## Layout
 
 ```
