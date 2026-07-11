@@ -214,7 +214,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) resize() {
-	inputH := 4 // status line + textarea
+	inputH := 5 // textarea (3) + status line (1) + textarea trailing newline (1)
 	m.viewport.Width = m.width
 	m.viewport.Height = m.height - inputH
 	m.ta.SetWidth(m.width)
