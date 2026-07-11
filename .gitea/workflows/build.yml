@@ -27,8 +27,25 @@ jobs:
       - name: Create release and upload assets
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITEA_API: https://git.standke.dev/api/v1
+          REPO: xanderstrike/do
+          TAG: ${{ github.ref_name }}
         run: |
-          export GH_HOST=git.standke.dev
-          gh release create "${{ github.ref_name }}" dist/* \
-            --title "${{ github.ref_name }}" \
-            --notes "Release ${{ github.ref_name }}"
+          # Create the release
+          RELEASE_ID=$(curl -sS -X POST \
+            -H "Authorization: token ${GITHUB_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "{\"tag_name\":\"${TAG}\",\"name\":\"${TAG}\",\"body\":\"Release ${TAG}\",\"draft\":false}" \
+            "${GITEA_API}/repos/${REPO}/releases" | python3 -c "import sys,json; print(json.load(sys.stdin)['id'])")
+          echo "Created release ID: ${RELEASE_ID}"
+
+          # Upload each binary as an asset
+          for f in dist/*; do
+            name=$(basename "$f")
+            curl -sS -X POST \
+              -H "Authorization: token ${GITHUB_TOKEN}" \
+              -H "Content-Type: application/octet-stream" \
+              --data-binary @"$f" \
+              "${GITEA_API}/repos/${REPO}/releases/${RELEASE_ID}/assets?name=${name}" > /dev/null
+            echo "Uploaded ${name}"
+          done
