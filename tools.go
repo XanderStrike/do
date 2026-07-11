@@ -33,13 +33,21 @@ func tools() []Tool {
 			Type: "function",
 			Function: Function{
 				Name:        "read_file",
-				Description: "Read the full contents of a file at the given path. Returns the file contents as text.",
+				Description: "Read the contents of a file at the given path. Returns the file contents as text. Optionally pass start_line and/or end_line (1-based, inclusive) to read a specific line range; without them the entire file is returned.",
 				Parameters: map[string]any{
 					"type": "object",
 					"properties": map[string]any{
 						"path": map[string]any{
 							"type":        "string",
 							"description": "Path to the file to read. Relative paths are resolved against the working directory.",
+						},
+						"start_line": map[string]any{
+							"type":        "integer",
+							"description": "1-based line number to start reading from (inclusive). Omit to start at the beginning.",
+						},
+						"end_line": map[string]any{
+							"type":        "integer",
+							"description": "1-based line number to stop reading at (inclusive). Omit to read to the end of the file.",
 						},
 					},
 					"required": []string{"path"},
@@ -118,7 +126,9 @@ func runTool(ctx context.Context, name, argsJSON string) string {
 	switch name {
 	case "read_file":
 		var a struct {
-			Path string `json:"path"`
+			Path      string `json:"path"`
+			StartLine *int   `json:"start_line"`
+			EndLine   *int   `json:"end_line"`
 		}
 		if err := json.Unmarshal([]byte(argsJSON), &a); err != nil {
 			return "error parsing arguments: " + err.Error()
@@ -127,7 +137,27 @@ func runTool(ctx context.Context, name, argsJSON string) string {
 		if err != nil {
 			return "error: " + err.Error()
 		}
-		return string(data)
+		if a.StartLine == nil && a.EndLine == nil {
+			return string(data)
+		}
+		lines := strings.Split(string(data), "\n")
+		start, end := 1, len(lines)
+		if a.StartLine != nil {
+			start = *a.StartLine
+		}
+		if a.EndLine != nil {
+			end = *a.EndLine
+		}
+		if start < 1 {
+			start = 1
+		}
+		if end > len(lines) {
+			end = len(lines)
+		}
+		if start > end {
+			return "error: start_line is after end_line"
+		}
+		return strings.Join(lines[start-1:end], "\n")
 
 	case "write_file":
 		var a struct {
