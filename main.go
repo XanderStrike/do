@@ -214,9 +214,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) resize() {
-	inputH := 5 // textarea (3) + status line (1) + textarea trailing newline (1)
 	m.viewport.Width = m.width
-	m.viewport.Height = m.height - inputH
+	m.viewport.Height = m.height - inputHeight
 	m.ta.SetWidth(m.width)
 	m.refreshViewport()
 }
@@ -226,9 +225,14 @@ func (m *model) appendBlock(s string) {
 }
 
 func (m *model) refreshViewport() {
-	m.viewport.SetContent(strings.Join(m.blocks, "\n\n"))
+	// Pad with blank lines at the bottom so the last output isn't covered
+	// by the status bar and textarea below the viewport.
+	padding := strings.Repeat("\n", inputHeight)
+	m.viewport.SetContent(strings.Join(m.blocks, "\n\n") + padding)
 	m.viewport.GotoBottom()
 }
+
+const inputHeight = 5 // status line + textarea
 
 func (m *model) submit(input string) {
 	m.busy = true
