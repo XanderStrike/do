@@ -187,11 +187,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.err = ""
 	}
 
+	// Forward to textarea. Only forward non-key messages to the viewport —
+	// otherwise arrow keys (Up/Down) used for cursor movement in the textarea
+	// also scroll the viewport, causing it to jump around while typing.
 	var cmd tea.Cmd
 	m.ta, cmd = m.ta.Update(msg)
 	cmds = append(cmds, cmd)
-	m.viewport, cmd = m.viewport.Update(msg)
-	cmds = append(cmds, cmd)
+	if _, ok := msg.(tea.KeyMsg); !ok {
+		m.viewport, cmd = m.viewport.Update(msg)
+		cmds = append(cmds, cmd)
+	}
 	return m, tea.Batch(cmds...)
 }
 
