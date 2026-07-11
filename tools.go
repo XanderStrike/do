@@ -169,10 +169,14 @@ func runTool(ctx context.Context, name, argsJSON string) string {
 		out, err := cmd.CombinedOutput()
 		s := strings.TrimSpace(string(out))
 		if err != nil {
-			if s == "" {
-				return "error: " + err.Error()
+			msg := err.Error()
+			if ctx.Err() == context.DeadlineExceeded {
+				msg = "command timed out after 60s"
 			}
-			return s + "\n[error: " + err.Error() + "]"
+			if s == "" {
+				return "error: " + msg
+			}
+			return s + "\n[error: " + msg + "]"
 		}
 		if s == "" {
 			return "(no output)"

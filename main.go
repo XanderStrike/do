@@ -199,17 +199,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.err = msg.err.Error()
 		m.appendBlock(errStyle.Render("error: " + msg.err.Error()))
 		m.refreshViewport()
-		m.busy = false
+		m.idle()
 
-	case doneMsg:
-		m.busy = false
+	case doneMsg, stopMsg:
+		m.idle()
 		m.err = ""
-		m.cancel = nil
-
-	case stopMsg:
-		m.busy = false
-		m.err = ""
-		m.cancel = nil
 	}
 
 	// Forward to textarea. Only forward non-key messages to the viewport —
@@ -237,6 +231,14 @@ func (m *model) appendBlock(s string) {
 	m.blocks = append(m.blocks, s)
 }
 
+// idle returns the model to a non-busy state, clearing the cancel func for
+// the finished turn. m.err is left untouched so View can show "last turn
+// errored" until the next turn begins.
+func (m *model) idle() {
+	m.busy = false
+	m.cancel = nil
+}
+
 func (m *model) refreshViewport() {
 	// Pad with blank lines at the bottom so the last output isn't covered
 	// by the status bar and textarea below the viewport.
@@ -247,6 +249,10 @@ func (m *model) refreshViewport() {
 
 const inputHeight = 5 // status line + textarea
 
+// submit starts an agent turn. It's a pointer receiver so it can mutate m
+// in place; this is safe because Update holds an addressable local m and
+// returns it immediately after, so the mutations propagate back to the
+// framework. The same goes for the other pointer-receiver helpers below.
 func (m *model) submit(input string) {
 	m.busy = true
 	m.err = ""
@@ -256,15 +262,11 @@ func (m *model) submit(input string) {
 	m.refreshViewport()
 
 	// Launch the agent turn in a goroutine, streaming progress back via msgs.
-	p := m.program()
+	p := prog
 	ctx, cancel := context.WithCancel(context.Background())
 	m.cancel = cancel
 	go runAgent(p, m.llm, m.conv, m.cwd, ctx)
 }
-
-// program returns the current tea.Program. We grab it via a package-level
-// pointer set in main so the goroutine can send messages.
-func (m *model) program() *tea.Program { return prog }
 
 var prog *tea.Program
 
@@ -273,8 +275,12 @@ const maxResultLines = 10 // cap tool result display in the viewport
 
 // runAgent loops: ask the LLM, execute any tool calls, repeat until the LLM
 // replies with plain text and no tool calls. Caps at maxTurns iterations.
+// Runs on a goroutine; safe because the `busy` flag serializes turns (the
+// TUI won't submit another while one is in flight). The session is saved
+// once on exit via defer — mid-turn state isn't worth persisting since a
+// half-executed tool loop can't be resumed anyway (trimForResume drops it).
 func runAgent(p *tea.Program, llm *LLMClient, conv *[]Message, cwd string, ctx context.Context) {
-	saveSession(cwd, conv)
+	defer saveSession(cwd, conv)
 	for i := 0; i < maxTurns; i++ {
 		resp, err := llm.Complete(ctx, *conv)
 		if err != nil {
@@ -286,7 +292,6 @@ func runAgent(p *tea.Program, llm *LLMClient, conv *[]Message, cwd string, ctx c
 			return
 		}
 		*conv = append(*conv, resp)
-		saveSession(cwd, conv)
 
 		if resp.Content != "" {
 			p.Send(assistantMsg{resp.Content})
@@ -310,7 +315,6 @@ func runAgent(p *tea.Program, llm *LLMClient, conv *[]Message, cwd string, ctx c
 				ToolCallID: tc.ID,
 				Content:    result,
 			})
-			saveSession(cwd, conv)
 		}
 	}
 	p.Send(errMsg{fmt.Errorf("turn limit (%d) reached", maxTurns)})
