@@ -4,7 +4,7 @@ Guide for AI coding agents working on this repo.
 
 ## What this is
 
-`do` is a minimal terminal coding agent — a tiny "pi clone" — built in Go
+`do` is a minimal terminal coding agent built in Go
 with [Bubble Tea](https://github.com/charmbracelet/bubbletea). It exposes four
 tools (read_file, write_file, edit_file, shell) and drives any
 OpenAI-compatible chat completions endpoint in an agentic loop.

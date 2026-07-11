@@ -1,6 +1,6 @@
 package main
 
-// A super-minimal terminal coding agent (a tiny pi clone) built with Bubble Tea.
+// A super-minimal terminal coding agent built with Bubble Tea.
 //
 // Four tools: read_file, write_file, edit_file, shell. Talks to any OpenAI-compatible
 // chat completions endpoint. See README.md for config.

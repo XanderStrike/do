@@ -1,6 +1,6 @@
 # do
 
-A super-minimal terminal coding agent (a tiny pi clone) built with Go + [Bubble Tea](https://github.com/charmbracelet/bubbletea).
+A super-minimal terminal coding agent built with Go + [Bubble Tea](https://github.com/charmbracelet/bubbletea).
 
 Four tools, that's it:
 
