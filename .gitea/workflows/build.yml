@@ -19,10 +19,10 @@ jobs:
       - name: Build all targets
         run: |
           mkdir -p dist
-          for target in "linux arm64" "linux amd64" "darwin arm64"; do
+          for target in "linux arm64" "linux amd64" "darwin arm64" "linux arm 7"; do
             set -- $target
-            GOOS=$1 GOARCH=$2 CGO_ENABLED=0 go build -ldflags="-s -w" -o "dist/do-$1-$2" .
-            echo "Built dist/do-$1-$2"
+            GOOS=$1 GOARCH=$2 GOARM=${3:-} CGO_ENABLED=0 go build -ldflags="-s -w" -o "dist/do-$1-$2${3:+-v$3}" .
+            echo "Built dist/do-$1-$2${3:+-v$3}"
           done
 
       - name: Create release and upload assets
