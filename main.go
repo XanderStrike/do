@@ -201,7 +201,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// Forward to textarea. Only forward non-key messages to the viewport —
 	// otherwise arrow keys (Up/Down) used for cursor movement in the textarea
-	// also scroll the viewport, causing it to jump around while typing.
+	// also scroll the viewport, causing it to jump around while typing. Mouse
+	// events (scroll) go to the viewport so the user can scroll history.
 	var cmd tea.Cmd
 	m.ta, cmd = m.ta.Update(msg)
 	cmds = append(cmds, cmd)
@@ -213,7 +214,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) resize() {
-	inputH := 5 // textarea + border + status line
+	inputH := 4 // status line + textarea
 	m.viewport.Width = m.width
 	m.viewport.Height = m.height - inputH
 	m.ta.SetWidth(m.width)
@@ -347,7 +348,7 @@ func contextWithTimeout(d time.Duration) (context.Context, context.CancelFunc) {
 }
 
 func main() {
-	prog = tea.NewProgram(initialModel(), tea.WithAltScreen())
+	prog = tea.NewProgram(initialModel(), tea.WithAltScreen(), tea.WithMouseCellMotion())
 	if _, err := prog.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
