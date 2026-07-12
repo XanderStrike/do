@@ -261,7 +261,7 @@ func (m *model) refreshViewport() {
 	m.viewport.GotoBottom()
 }
 
-const inputHeight = 6 // status bar (1) + divider (1) + status line (1) + textarea (3)
+const inputHeight = 5 // status bar (1) + divider (1) + textarea (3)
 
 // submit starts an agent turn. It's a pointer receiver so it can mutate m
 // in place; this is safe because Update holds an addressable local m and
@@ -350,30 +350,30 @@ func noteInterruption(conv *[]Message) {
 }
 
 func (m model) View() string {
-	status := ""
-	if m.busy {
-		status = m.spinner.View() + dimStyle.Render(" working...")
-	} else if m.err != "" {
-		status = errStyle.Render("ready (last turn errored)")
-	} else {
-		status = dimStyle.Render("ready")
+	// "do" prefix is animated (spinner) and colored based on state.
+	var prefix string
+	switch {
+	case m.busy:
+		prefix = lipgloss.NewStyle().Foreground(lipgloss.Color("36")).Render(m.spinner.View() + "do")
+	case m.err != "":
+		prefix = errStyle.Render("do")
+	default:
+		prefix = dimStyle.Render("do")
 	}
 
-	// Status bar across the top: do - path (git-branch) - model
-	bar := "do - " + m.cwd
+	// Status bar across the top: [do] - path (git-branch) - model
+	rest := " - " + m.cwd
 	if br := gitBranch(m.cwd); br != "" {
-		bar += " (" + br + ")"
+		rest += " (" + br + ")"
 	}
-	bar += " - " + m.llm.Model
+	rest += " - " + m.llm.Model
 
 	var b strings.Builder
-	b.WriteString(lipgloss.NewStyle().Width(m.width).Render(bar))
+	b.WriteString(lipgloss.NewStyle().Width(m.width).Render(prefix + dimStyle.Render(rest)))
 	b.WriteString("\n")
 	b.WriteString(m.viewport.View())
 	b.WriteString("\n")
 	b.WriteString(dimStyle.Render(strings.Repeat("─", m.width)))
-	b.WriteString("\n")
-	b.WriteString(lipgloss.NewStyle().Width(m.width).Render(status))
 	b.WriteString("\n")
 	b.WriteString(m.ta.View())
 	return b.String()
