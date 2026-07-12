@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"unicode/utf8"
@@ -260,7 +261,7 @@ func (m *model) refreshViewport() {
 	m.viewport.GotoBottom()
 }
 
-const inputHeight = 5 // divider (1) + status line (1) + textarea (3)
+const inputHeight = 6 // status bar (1) + divider (1) + status line (1) + textarea (3)
 
 // submit starts an agent turn. It's a pointer receiver so it can mutate m
 // in place; this is safe because Update holds an addressable local m and
@@ -358,7 +359,16 @@ func (m model) View() string {
 		status = dimStyle.Render("ready")
 	}
 
+	// Status bar across the top: path (git-branch) - model
+	bar := m.cwd
+	if br := gitBranch(m.cwd); br != "" {
+		bar += " (" + br + ")"
+	}
+	bar += " - " + m.llm.Model
+
 	var b strings.Builder
+	b.WriteString(lipgloss.NewStyle().Width(m.width).Render(bar))
+	b.WriteString("\n")
 	b.WriteString(m.viewport.View())
 	b.WriteString("\n")
 	b.WriteString(dimStyle.Render(strings.Repeat("─", m.width)))
@@ -367,6 +377,16 @@ func (m model) View() string {
 	b.WriteString("\n")
 	b.WriteString(m.ta.View())
 	return b.String()
+}
+
+// gitBranch returns the current git branch name, or "" if not in a repo.
+func gitBranch(cwd string) string {
+	cmd := exec.Command("git", "-C", cwd, "symbolic-ref", "--short", "HEAD")
+	out, err := cmd.Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
 }
 
 func indent(s string) string {
