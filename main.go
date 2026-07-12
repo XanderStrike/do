@@ -504,6 +504,8 @@ func runCLI(prompt string) {
 	msgs = append(msgs, Message{Role: "user", Content: prompt})
 	saveSession(cwd, &msgs, nil)
 
+	fmt.Println(dimStyle.Render("using model " + llm.Model))
+
 	var usage *Usage
 	send := func(msg any) {
 		switch v := msg.(type) {
