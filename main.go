@@ -10,9 +10,11 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"unicode/utf8"
 
 	"github.com/charmbracelet/bubbles/spinner"
@@ -283,10 +285,9 @@ func (m *model) submit(input string) {
 	m.refreshViewport()
 
 	// Launch the agent turn in a goroutine, streaming progress back via msgs.
-	p := prog
 	ctx, cancel := context.WithCancel(context.Background())
 	m.cancel = cancel
-	go runAgent(p, m.llm, m.conv, m.cwd, ctx)
+	go runAgent(func(msg any) { prog.Send(msg) }, m.llm, m.conv, m.cwd, ctx)
 }
 
 var prog *tea.Program
@@ -300,7 +301,7 @@ const maxResultLines = 10 // cap tool result display in the viewport
 // TUI won't submit another while one is in flight). The session is saved
 // once on exit via defer — mid-turn state isn't worth persisting since a
 // half-executed tool loop can't be resumed anyway (trimForResume drops it).
-func runAgent(p *tea.Program, llm *LLMClient, conv *[]Message, cwd string, ctx context.Context) {
+func runAgent(send func(any), llm *LLMClient, conv *[]Message, cwd string, ctx context.Context) {
 	var usage *Usage
 	defer func() { saveSession(cwd, conv, usage) }()
 	for i := 0; i < maxTurns; i++ {
@@ -308,23 +309,23 @@ func runAgent(p *tea.Program, llm *LLMClient, conv *[]Message, cwd string, ctx c
 		if err != nil {
 			if ctx.Err() != nil {
 				noteInterruption(conv)
-				p.Send(stopMsg{note: "generation interrupted by user"})
+				send(stopMsg{note: "generation interrupted by user"})
 				return
 			}
-			p.Send(errMsg{err})
+			send(errMsg{err})
 			return
 		}
 		usage = u
 		if usage != nil {
-			p.Send(usageMsg{usage: usage})
+			send(usageMsg{usage: usage})
 		}
 		*conv = append(*conv, resp)
 
 		if resp.Content != "" {
-			p.Send(assistantMsg{resp.Content})
+			send(assistantMsg{resp.Content})
 		}
 		if len(resp.ToolCalls) == 0 {
-			p.Send(doneMsg{})
+			send(doneMsg{})
 			return
 		}
 
@@ -332,12 +333,12 @@ func runAgent(p *tea.Program, llm *LLMClient, conv *[]Message, cwd string, ctx c
 			// Stop before running more tools if the user cancelled.
 			if ctx.Err() != nil {
 				noteInterruption(conv)
-				p.Send(stopMsg{note: "generation interrupted by user"})
+				send(stopMsg{note: "generation interrupted by user"})
 				return
 			}
-			p.Send(toolStartMsg{name: tc.Function.Name, args: tc.Function.Arguments})
+			send(toolStartMsg{name: tc.Function.Name, args: tc.Function.Arguments})
 			result := runTool(ctx, tc.Function.Name, tc.Function.Arguments)
-			p.Send(toolResultMsg{name: tc.Function.Name, args: tc.Function.Arguments, result: result})
+			send(toolResultMsg{name: tc.Function.Name, args: tc.Function.Arguments, result: result})
 			*conv = append(*conv, Message{
 				Role:       "tool",
 				ToolCallID: tc.ID,
@@ -345,7 +346,7 @@ func runAgent(p *tea.Program, llm *LLMClient, conv *[]Message, cwd string, ctx c
 			})
 		}
 	}
-	p.Send(errMsg{fmt.Errorf("turn limit (%d) reached", maxTurns)})
+	send(errMsg{fmt.Errorf("turn limit (%d) reached", maxTurns)})
 }
 
 // noteInterruption trims any incomplete trailing tool-call sequence from the
@@ -476,9 +477,71 @@ func renderHistoryBlock(msg Message) string {
 }
 
 func main() {
+	if len(os.Args) > 1 {
+		runCLI(strings.Join(os.Args[1:], " "))
+		return
+	}
 	prog = tea.NewProgram(initialModel(), tea.WithAltScreen(), tea.WithMouseCellMotion())
 	if _, err := prog.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		os.Exit(1)
+	}
+}
+
+// runCLI runs a single prompt in non-interactive mode: prints styled output to
+// stdout (no alt screen), using the same agent loop and session persistence as
+// the TUI. The session is saved on exit so it can be resumed later.
+func runCLI(prompt string) {
+	cwd, _ := os.Getwd()
+	llm := newLLMClient()
+	msgs := []Message{{Role: "system", Content: systemPrompt(cwd, loadAgentsContext(cwd))}}
+
+	if prior, usage := loadSession(cwd); len(prior) > 0 {
+		msgs = append(msgs, prior...)
+		_ = usage
+	}
+
+	msgs = append(msgs, Message{Role: "user", Content: prompt})
+	saveSession(cwd, &msgs, nil)
+
+	fmt.Println(userStyle.Render("● you"))
+	fmt.Println(prompt)
+	fmt.Println()
+
+	var usage *Usage
+	send := func(msg any) {
+		switch v := msg.(type) {
+		case assistantMsg:
+			if v.text != "" {
+				fmt.Println(assistantStyle.Render("● assistant"))
+				fmt.Println(v.text)
+				fmt.Println()
+			}
+		case toolStartMsg:
+			fmt.Println(toolStyle.Render("↳ "+v.name+" ") + dimStyle.Render(truncateOneLine(v.args)))
+		case toolResultMsg:
+			fmt.Println(resultStyle.Render(indent(truncateLines(v.result, maxResultLines))))
+			fmt.Println()
+		case usageMsg:
+			usage = v.usage
+		case errMsg:
+			fmt.Fprintln(os.Stderr, errStyle.Render("error: "+v.err.Error()))
+		case doneMsg, stopMsg:
+			// turn complete
+		}
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Ctrl+C stops the agent; a second Ctrl+C exits immediately.
+	ctx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	runAgent(send, llm, &msgs, cwd, ctx)
+
+	if usage != nil {
+		fmt.Fprintln(os.Stderr, dimStyle.Render(fmt.Sprintf(
+			"%s↑ %s↓ tok", comma(usage.PromptTokens), comma(usage.CompletionTokens))))
 	}
 }

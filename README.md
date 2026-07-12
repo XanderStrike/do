@@ -35,6 +35,16 @@ Point `DO_BASE_URL` at a local server (e.g. `http://localhost:11434/v1` for Olla
 
 Type a request, hit Enter. The agent loops over tool calls until it's done. Esc stops generation mid-turn, or quits when idle. Ctrl+C always force-quits.
 
+### CLI mode
+
+Pass a prompt as arguments to run a single turn without launching the TUI:
+
+```sh
+./do fix the typo in main.go
+```
+
+Output goes to stdout with the same styling. The session is saved just like interactive mode, so you can resume it later with `./do`.
+
 Sessions auto-save to `.do-session` in the working directory and resume on next launch. Delete `.do-session` to start fresh.
 
 ## Layout
