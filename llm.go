@@ -31,6 +31,12 @@ type ToolCall struct {
 	} `json:"function"`
 }
 
+type Usage struct {
+	PromptTokens     int `json:"prompt_tokens"`
+	CompletionTokens int `json:"completion_tokens"`
+	TotalTokens      int `json:"total_tokens"`
+}
+
 type completionRequest struct {
 	Model    string    `json:"model"`
 	Messages []Message `json:"messages"`
@@ -42,6 +48,7 @@ type completionResponse struct {
 		Message      Message `json:"message"`
 		FinishReason string  `json:"finish_reason"`
 	} `json:"choices"`
+	Usage *Usage `json:"usage,omitempty"`
 	Error *struct {
 		Message string `json:"message"`
 		Type    string `json:"type"`
@@ -73,20 +80,20 @@ func newLLMClient() *LLMClient {
 }
 
 // Complete sends the conversation and returns the assistant's message
-// (which may contain content and/or tool_calls).
-func (c *LLMClient) Complete(ctx context.Context, messages []Message) (Message, error) {
+// (which may contain content and/or tool_calls) and token usage.
+func (c *LLMClient) Complete(ctx context.Context, messages []Message) (Message, *Usage, error) {
 	body, err := json.Marshal(completionRequest{
 		Model:    c.Model,
 		Messages: messages,
 		Tools:    tools(),
 	})
 	if err != nil {
-		return Message{}, err
+		return Message{}, nil, err
 	}
 
 	req, err := http.NewRequestWithContext(ctx, "POST", c.BaseURL+"/chat/completions", bytes.NewReader(body))
 	if err != nil {
-		return Message{}, err
+		return Message{}, nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	if c.APIKey != "" {
@@ -95,27 +102,27 @@ func (c *LLMClient) Complete(ctx context.Context, messages []Message) (Message, 
 
 	resp, err := c.HTTP.Do(req)
 	if err != nil {
-		return Message{}, err
+		return Message{}, nil, err
 	}
 	defer resp.Body.Close()
 
 	raw, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return Message{}, err
+		return Message{}, nil, err
 	}
 	if resp.StatusCode != 200 {
-		return Message{}, fmt.Errorf("LLM request failed (%d): %s", resp.StatusCode, string(raw))
+		return Message{}, nil, fmt.Errorf("LLM request failed (%d): %s", resp.StatusCode, string(raw))
 	}
 
 	var cr completionResponse
 	if err := json.Unmarshal(raw, &cr); err != nil {
-		return Message{}, fmt.Errorf("failed to parse LLM response: %w\nbody: %s", err, string(raw))
+		return Message{}, nil, fmt.Errorf("failed to parse LLM response: %w\nbody: %s", err, string(raw))
 	}
 	if cr.Error != nil {
-		return Message{}, fmt.Errorf("LLM error: %s", cr.Error.Message)
+		return Message{}, nil, fmt.Errorf("LLM error: %s", cr.Error.Message)
 	}
 	if len(cr.Choices) == 0 {
-		return Message{}, fmt.Errorf("LLM returned no choices")
+		return Message{}, nil, fmt.Errorf("LLM returned no choices")
 	}
-	return cr.Choices[0].Message, nil
+	return cr.Choices[0].Message, cr.Usage, nil
 }

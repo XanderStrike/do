@@ -11,17 +11,28 @@ import (
 
 const sessionFile = ".do-session"
 
+// sessionData is the persisted session format: conversation messages (sans
+// system prompt) plus the last-known token usage from the API.
+type sessionData struct {
+	Messages []Message `json:"messages"`
+	Usage    *Usage    `json:"usage,omitempty"`
+}
+
 func sessionPath(cwd string) string {
 	return filepath.Join(cwd, sessionFile)
 }
 
 // saveSession writes the conversation (excluding the system prompt at index 0)
-// to the .do-session file in cwd. Silently ignores errors — best-effort.
-func saveSession(cwd string, conv *[]Message) {
+// and the last-known usage to the .do-session file in cwd. Silently ignores
+// errors — best-effort.
+func saveSession(cwd string, conv *[]Message, usage *Usage) {
 	if len(*conv) <= 1 {
 		return
 	}
-	data, err := json.Marshal((*conv)[1:])
+	data, err := json.Marshal(sessionData{
+		Messages: (*conv)[1:],
+		Usage:    usage,
+	})
 	if err != nil {
 		return
 	}
@@ -36,17 +47,27 @@ func saveSession(cwd string, conv *[]Message) {
 }
 
 // loadSession reads .do-session from cwd. Returns messages (without system
-// prompt) or nil if no session exists or it can't be parsed.
-func loadSession(cwd string) []Message {
+// prompt) and last-known usage, or nil if no session exists or it can't be
+// parsed. Handles both the current sessionData format and legacy bare []Message
+// arrays from older versions.
+func loadSession(cwd string) ([]Message, *Usage) {
 	data, err := os.ReadFile(sessionPath(cwd))
 	if err != nil {
-		return nil
+		return nil, nil
 	}
+
+	// Try the current format first.
+	var sd sessionData
+	if err := json.Unmarshal(data, &sd); err == nil && sd.Messages != nil {
+		return trimForResume(sd.Messages), sd.Usage
+	}
+
+	// Fall back to legacy bare []Message format.
 	var msgs []Message
 	if err := json.Unmarshal(data, &msgs); err != nil {
-		return nil
+		return nil, nil
 	}
-	return trimForResume(msgs)
+	return trimForResume(msgs), nil
 }
 
 // trimForResume drops trailing messages that would leave the conversation in

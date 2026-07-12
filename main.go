@@ -35,7 +35,8 @@ type model struct {
 	llm       *LLMClient
 	cwd       string
 	conv      *[]Message // conversation history (shared with agent goroutine via pointer)
-	blocks    []string  // rendered conversation lines for the viewport
+	usage     *Usage     // last-known token usage from the API
+	blocks    []string   // rendered conversation lines for the viewport
 	viewport  viewport.Model
 	ta        textarea.Model
 	spinner   spinner.Model
@@ -50,6 +51,7 @@ type model struct {
 type assistantMsg struct{ text string }
 type toolStartMsg struct{ name, args string }
 type toolResultMsg struct{ name, args, result string }
+type usageMsg struct{ usage *Usage }
 type errMsg struct{ err error }
 type doneMsg struct{}
 type stopMsg struct{ note string } // user pressed Esc to stop generation
@@ -83,8 +85,9 @@ func initialModel() model {
 	}
 
 	// Resume session if .do-session exists.
-	if prior := loadSession(cwd); len(prior) > 0 {
+	if prior, usage := loadSession(cwd); len(prior) > 0 {
 		msgs = append(msgs, prior...)
+		m.usage = usage
 		for _, msg := range prior {
 			m.blocks = append(m.blocks, renderHistoryBlock(msg))
 		}
@@ -190,6 +193,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.appendBlock(assistantStyle.Render("● assistant") + "\n" + msg.text)
 		m.refreshViewport()
 
+	case usageMsg:
+		m.usage = msg.usage
+
 	case toolStartMsg:
 		m.appendBlock(toolStyle.Render("↳ " + msg.name + " ") + dimStyle.Render(truncateOneLine(msg.args)))
 		m.refreshViewport()
@@ -271,7 +277,7 @@ func (m *model) submit(input string) {
 	m.busy = true
 	m.err = ""
 	*m.conv = append(*m.conv, Message{Role: "user", Content: input})
-	saveSession(m.cwd, m.conv)
+	saveSession(m.cwd, m.conv, m.usage)
 	m.appendBlock(userStyle.Render("● you") + "\n" + input)
 	m.refreshViewport()
 
@@ -294,9 +300,10 @@ const maxResultLines = 10 // cap tool result display in the viewport
 // once on exit via defer — mid-turn state isn't worth persisting since a
 // half-executed tool loop can't be resumed anyway (trimForResume drops it).
 func runAgent(p *tea.Program, llm *LLMClient, conv *[]Message, cwd string, ctx context.Context) {
-	defer saveSession(cwd, conv)
+	var usage *Usage
+	defer saveSession(cwd, conv, usage)
 	for i := 0; i < maxTurns; i++ {
-		resp, err := llm.Complete(ctx, *conv)
+		resp, u, err := llm.Complete(ctx, *conv)
 		if err != nil {
 			if ctx.Err() != nil {
 				noteInterruption(conv)
@@ -305,6 +312,10 @@ func runAgent(p *tea.Program, llm *LLMClient, conv *[]Message, cwd string, ctx c
 			}
 			p.Send(errMsg{err})
 			return
+		}
+		usage = u
+		if usage != nil {
+			p.Send(usageMsg{usage: usage})
 		}
 		*conv = append(*conv, resp)
 
@@ -367,6 +378,9 @@ func (m model) View() string {
 		rest += " (" + br + ")"
 	}
 	rest += " - " + m.llm.Model
+	if m.usage != nil {
+		rest += fmt.Sprintf(" - %d↑ %d↓ tok", m.usage.PromptTokens, m.usage.CompletionTokens)
+	}
 
 	var b strings.Builder
 	b.WriteString(lipgloss.NewStyle().Width(m.width).Render(prefix + dimStyle.Render(rest)))
