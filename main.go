@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -379,7 +380,8 @@ func (m model) View() string {
 	}
 	rest += " - " + m.llm.Model
 	if m.usage != nil {
-		rest += fmt.Sprintf(" - %d↑ %d↓ tok", m.usage.PromptTokens, m.usage.CompletionTokens)
+		rest += fmt.Sprintf(" - %s↑ %s↓ tok",
+			comma(m.usage.PromptTokens), comma(m.usage.CompletionTokens))
 	}
 
 	var b strings.Builder
@@ -409,6 +411,27 @@ func indent(s string) string {
 		lines[i] = "  " + l
 	}
 	return strings.Join(lines, "\n")
+}
+
+// comma formats an integer with comma separators (e.g. 21970 → "21,970").
+func comma(n int) string {
+	s := strconv.Itoa(n)
+	neg := false
+	if strings.HasPrefix(s, "-") {
+		neg = true
+		s = s[1:]
+	}
+	var b strings.Builder
+	for i, c := range s {
+		if i > 0 && (len(s)-i)%3 == 0 {
+			b.WriteByte(',')
+		}
+		b.WriteByte(byte(c))
+	}
+	if neg {
+		b.WriteByte('-')
+	}
+	return b.String()
 }
 
 func truncateOneLine(s string) string {
