@@ -504,10 +504,6 @@ func runCLI(prompt string) {
 	msgs = append(msgs, Message{Role: "user", Content: prompt})
 	saveSession(cwd, &msgs, nil)
 
-	fmt.Println(userStyle.Render("● you"))
-	fmt.Println(prompt)
-	fmt.Println()
-
 	var usage *Usage
 	send := func(msg any) {
 		switch v := msg.(type) {
