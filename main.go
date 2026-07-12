@@ -359,8 +359,8 @@ func (m model) View() string {
 		status = dimStyle.Render("ready")
 	}
 
-	// Status bar across the top: path (git-branch) - model
-	bar := m.cwd
+	// Status bar across the top: do - path (git-branch) - model
+	bar := "do - " + m.cwd
 	if br := gitBranch(m.cwd); br != "" {
 		bar += " (" + br + ")"
 	}
