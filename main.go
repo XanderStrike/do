@@ -301,7 +301,7 @@ const maxResultLines = 10 // cap tool result display in the viewport
 // half-executed tool loop can't be resumed anyway (trimForResume drops it).
 func runAgent(p *tea.Program, llm *LLMClient, conv *[]Message, cwd string, ctx context.Context) {
 	var usage *Usage
-	defer saveSession(cwd, conv, usage)
+	defer func() { saveSession(cwd, conv, usage) }()
 	for i := 0; i < maxTurns; i++ {
 		resp, u, err := llm.Complete(ctx, *conv)
 		if err != nil {
