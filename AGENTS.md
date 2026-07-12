@@ -88,3 +88,21 @@ That's the whole codebase — four files, ~760 LOC. Keep it minimal.
 1. `go build -o do` to confirm it compiles.
 2. `go vet ./...` for static checks.
 3. Summarize what you changed briefly — that matches the style of this project.
+
+**Commit regularly.** When you complete a discrete change (a bugfix, a new
+feature, a doc update), commit it without asking — don't batch up unrelated
+work into one giant commit. Keep commit messages short and descriptive.
+
+## Cutting a release
+
+Only do this when explicitly asked. The Gitea workflow (`.gitea/workflows/build.yml`)
+triggers on pushing a `v*` tag. It cross-compiles binaries
+(linux/arm64, linux/amd64, darwin/arm64, linux/arm-v7) and creates a Gitea
+release with them as assets.
+
+```sh
+git tag vX.Y.Z
+git push origin vX.Y.Z
+```
+
+That's it — the workflow handles the rest.
