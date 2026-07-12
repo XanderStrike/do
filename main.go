@@ -51,7 +51,7 @@ type toolStartMsg struct{ name, args string }
 type toolResultMsg struct{ name, args, result string }
 type errMsg struct{ err error }
 type doneMsg struct{}
-type stopMsg struct{} // user pressed Esc to stop generation
+type stopMsg struct{ note string } // user pressed Esc to stop generation
 
 func initialModel() model {
 	cwd, _ := os.Getwd()
@@ -191,6 +191,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case toolStartMsg:
 		m.appendBlock(toolStyle.Render("↳ " + msg.name + " ") + dimStyle.Render(truncateOneLine(msg.args)))
+		m.refreshViewport()
 
 	case toolResultMsg:
 		m.appendBlock(resultStyle.Render(indent(truncateLines(msg.result, maxResultLines))))
@@ -202,7 +203,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.refreshViewport()
 		m.idle()
 
-	case doneMsg, stopMsg:
+	case doneMsg:
+		m.idle()
+		m.err = ""
+	case stopMsg:
+		if msg.note != "" {
+			m.appendBlock(dimStyle.Render(msg.note))
+			m.refreshViewport()
+		}
 		m.idle()
 		m.err = ""
 	}
@@ -290,7 +298,8 @@ func runAgent(p *tea.Program, llm *LLMClient, conv *[]Message, cwd string, ctx c
 		resp, err := llm.Complete(ctx, *conv)
 		if err != nil {
 			if ctx.Err() != nil {
-				p.Send(stopMsg{})
+				noteInterruption(conv)
+				p.Send(stopMsg{note: "generation interrupted by user"})
 				return
 			}
 			p.Send(errMsg{err})
@@ -309,7 +318,8 @@ func runAgent(p *tea.Program, llm *LLMClient, conv *[]Message, cwd string, ctx c
 		for _, tc := range resp.ToolCalls {
 			// Stop before running more tools if the user cancelled.
 			if ctx.Err() != nil {
-				p.Send(stopMsg{})
+				noteInterruption(conv)
+				p.Send(stopMsg{note: "generation interrupted by user"})
 				return
 			}
 			p.Send(toolStartMsg{name: tc.Function.Name, args: tc.Function.Arguments})
@@ -323,6 +333,19 @@ func runAgent(p *tea.Program, llm *LLMClient, conv *[]Message, cwd string, ctx c
 		}
 	}
 	p.Send(errMsg{fmt.Errorf("turn limit (%d) reached", maxTurns)})
+}
+
+// noteInterruption trims any incomplete trailing tool-call sequence from the
+// conversation and appends a note so the model understands why the turn was
+// cut off when the session resumes.
+func noteInterruption(conv *[]Message) {
+	if len(*conv) > 1 {
+		*conv = append((*conv)[:1:1], trimForResume((*conv)[1:])...)
+	}
+	*conv = append(*conv, Message{
+		Role:    "user",
+		Content: "[Generation was interrupted by the user. The previous turn was cut off before completion.]",
+	})
 }
 
 func (m model) View() string {
