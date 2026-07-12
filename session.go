@@ -48,26 +48,17 @@ func saveSession(cwd string, conv *[]Message, usage *Usage) {
 
 // loadSession reads .do-session from cwd. Returns messages (without system
 // prompt) and last-known usage, or nil if no session exists or it can't be
-// parsed. Handles both the current sessionData format and legacy bare []Message
-// arrays from older versions.
+// parsed.
 func loadSession(cwd string) ([]Message, *Usage) {
 	data, err := os.ReadFile(sessionPath(cwd))
 	if err != nil {
 		return nil, nil
 	}
-
-	// Try the current format first.
 	var sd sessionData
-	if err := json.Unmarshal(data, &sd); err == nil && sd.Messages != nil {
-		return trimForResume(sd.Messages), sd.Usage
-	}
-
-	// Fall back to legacy bare []Message format.
-	var msgs []Message
-	if err := json.Unmarshal(data, &msgs); err != nil {
+	if err := json.Unmarshal(data, &sd); err != nil {
 		return nil, nil
 	}
-	return trimForResume(msgs), nil
+	return trimForResume(sd.Messages), sd.Usage
 }
 
 // trimForResume drops trailing messages that would leave the conversation in
