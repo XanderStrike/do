@@ -354,7 +354,7 @@ func (m model) View() string {
 	var prefix string
 	switch {
 	case m.busy:
-		prefix = lipgloss.NewStyle().Foreground(lipgloss.Color("36")).Render(m.spinner.View() + "do")
+		prefix = lipgloss.NewStyle().Foreground(lipgloss.Color("36")).Render(m.spinner.View() + "doing")
 	case m.err != "":
 		prefix = errStyle.Render("do")
 	default:
