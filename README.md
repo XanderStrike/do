@@ -43,15 +43,17 @@ Pass a prompt as arguments to run a single turn without launching the TUI:
 ./do fix the typo in main.go
 ```
 
-Output goes to stdout with the same styling. The session is saved just like interactive mode, so you can resume it later with `./do`.
+Output goes to stdout with the same styling. The session is saved just like interactive mode, so you can resume it later with `./do` or subsequent CLI mode runs.
+
+### Session
 
 Sessions auto-save to `.do-session` in the working directory and resume on next launch. Delete `.do-session` to start fresh.
 
 ## Layout
 
 ```
-┌─ viewport (conversation: you / assistant / tool calls / results)
-│
-├─ status line (ready / working spinner, token usage)
+┌─ status bar (do - path (branch) - model - token usage)
+├─ viewport (conversation: you / assistant / tool calls / results)
+├─ divider
 └─ textarea input
 ```

@@ -13,7 +13,8 @@ OpenAI-compatible chat completions endpoint in an agentic loop.
 
 ```sh
 go build -o do
-./do
+./do                    # interactive TUI
+./do fix the typo       # CLI mode: single prompt, no TUI
 ```
 
 Config via environment (or `.env`, which is gitignored):
@@ -28,7 +29,7 @@ DO_MODEL=gpt-4o
 
 | File      | Responsibility                                                       |
 |-----------|----------------------------------------------------------------------|
-| `main.go` | Bubble Tea TUI: viewport, textarea, spinner. The agent loop goroutine + system prompt. |
+| `main.go` | Bubble Tea TUI: viewport, textarea, spinner. The agent loop goroutine + system prompt. Also `runCLI` for non-interactive mode. |
 | `llm.go`  | HTTP client for `/chat/completions` with tool calling. `LLMClient`, `Message`, `ToolCall` types. |
 | `tools.go`| Tool JSON-schema definitions + `runTool` dispatch + `editFile` helper. |
 | `session.go` | Session persistence: saves conversation to `.do-session` in cwd, auto-resumes. |
@@ -48,6 +49,12 @@ That's the whole codebase — four files, ~960 LOC. Keep it minimal.
 - `do` reads `AGENTS.md` files from cwd up to the filesystem root and injects
   them (root-first, cwd last) into the system prompt via `loadAgentsContext`.
   This file is both agent guidance and live context for the running agent.
+- **CLI mode** (`runCLI` in main.go): when args are passed, `do` runs a single
+  prompt without the TUI. It prints `using model <name>` for immediate feedback,
+  then assistant output and tool activity to stdout. The prompt is not echoed
+  back but is saved to the session. Ctrl+C stops the agent. The same `runAgent`
+  loop and session persistence are used.
+
 ## Conventions
 
 - **Minimalism is the point.** Don't add dependencies or abstractions unless
