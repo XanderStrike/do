@@ -27,6 +27,12 @@ export DO_MODEL=gpt-4o                          # default
 
 Point `DO_BASE_URL` at a local server (e.g. `http://localhost:11434/v1` for Ollama, `http://localhost:1234/v1` for LM Studio) and drop the key.
 
+## AGENTS.md
+
+Every AGENTS.md up the file tree gets loaded. This is the primary way to configure your agent. 
+
+Rather than building plugins or extensions or prompt templates, write scripts and markdown files and mention them in `~/AGENTS.md` or `~/project/AGENTS.md`.
+
 ## Run
 
 ```sh
