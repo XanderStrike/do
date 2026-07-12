@@ -4,7 +4,7 @@ A super-minimal terminal coding agent built with Go + [Bubble Tea](https://githu
 
 Four tools, that's it:
 
-- `read_file(path)`
+- `read_file(path, start_line?, end_line?)`
 - `edit_file(path, old_string, new_string)`
 - `write_file(path, content)`
 - `shell(command)`
@@ -42,6 +42,6 @@ Sessions auto-save to `.do-session` in the working directory and resume on next 
 ```
 ┌─ viewport (conversation: you / assistant / tool calls / results)
 │
-├─ status line (ready / working spinner)
+├─ status line (ready / working spinner, token usage)
 └─ textarea input
 ```
