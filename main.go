@@ -153,7 +153,7 @@ func loadAgentsContext(cwd string) string {
 }
 
 func (m model) Init() tea.Cmd {
-	return tea.Batch(textarea.Blink, m.spinner.Tick)
+	return tea.Batch(textarea.Blink, m.spinner.Tick, tea.SetWindowTitle(windowTitle(m.cwd)))
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -394,6 +394,16 @@ func (m model) View() string {
 	b.WriteString("\n")
 	b.WriteString(m.ta.View())
 	return b.String()
+}
+
+// windowTitle returns "do - <basename> (<git branch>)" for the terminal
+// window title. The git branch part is omitted when not in a repo.
+func windowTitle(cwd string) string {
+	title := "do - " + filepath.Base(cwd)
+	if br := gitBranch(cwd); br != "" {
+		title += " (" + br + ")"
+	}
+	return title
 }
 
 // gitBranch returns the current git branch name, or "" if not in a repo.
