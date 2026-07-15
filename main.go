@@ -84,7 +84,7 @@ func initialModel() model {
 		viewport: vp,
 		ta:       ta,
 		spinner:  sp,
-		blocks:   []string{dimStyle.Render("working dir: " + cwd)},
+		blocks:   []string{},
 	}
 
 	// Resume session if .do-session exists.
