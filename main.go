@@ -66,7 +66,7 @@ func initialModel() model {
 	vp.SetContent("")
 
 	ta := textarea.New()
-	ta.Placeholder = "Ask me to build something... (Enter to send, Esc to stop/quit, Ctrl+C to force quit)"
+	ta.Placeholder = "Ask me to build something... (Enter to send, Esc to stop/quit, Ctrl+L to clear session, Ctrl+C to force quit)"
 	ta.Focus()
 	ta.CharLimit = 0
 	ta.ShowLineNumbers = false
@@ -170,6 +170,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.Type {
 		case tea.KeyCtrlC:
 			return m, tea.Quit
+		case tea.KeyCtrlL:
+			if !m.busy {
+				m.resetSession()
+			}
+			return m, nil
 		case tea.KeyEsc:
 			if m.busy {
 				if m.cancel != nil {
@@ -256,6 +261,16 @@ func (m *model) appendBlock(s string) {
 func (m *model) idle() {
 	m.busy = false
 	m.cancel = nil
+}
+
+// resetSession deletes the persisted .do-session file and clears all
+// conversation history and rendered blocks, keeping only the system prompt.
+func (m *model) resetSession() {
+	os.Remove(sessionPath(m.cwd))
+	*m.conv = (*m.conv)[:1]
+	m.usage = nil
+	m.blocks = nil
+	m.refreshViewport()
 }
 
 func (m *model) refreshViewport() {
