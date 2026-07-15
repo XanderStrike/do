@@ -2,6 +2,10 @@
 
 A super-minimal terminal coding agent built with Go + [Bubble Tea](https://github.com/charmbracelet/bubbletea).
 
+![](do.webp)
+
+~1000 loc, ~7mb binary, <200tok system prompt, runs on a potato and looks good doing it.
+
 Four tools, that's it:
 
 - `read_file(path, start_line?, end_line?)`
@@ -9,7 +13,11 @@ Four tools, that's it:
 - `write_file(path, content)`
 - `shell(command)`
 
-Talks to any OpenAI-compatible chat completions endpoint (OpenAI, OpenRouter, Ollama, LM Studio, ...).
+Talks to any OpenAI-compatible chat completions endpoint (OpenAI, OpenRouter, Ollama, Z.ai, ...).
+
+## Should I Use This?
+
+Honestly, probably not. What you _should_ do is vibe code your own harness that does exactly what you need it to do and nothing more. Feel free to point your agent at this repo to get it started.
 
 ## Build
 
@@ -29,17 +37,9 @@ Point `DO_BASE_URL` at a local server (e.g. `http://localhost:11434/v1` for Olla
 
 ## AGENTS.md
 
-Every AGENTS.md up the file tree gets loaded. This is the primary way to configure your agent. 
+Every AGENTS.md up the file tree gets loaded. This is the primary way to configure the agent. 
 
 Rather than building plugins or extensions or prompt templates, write scripts and markdown files and mention them in `~/AGENTS.md` or `~/project/AGENTS.md`.
-
-## Run
-
-```sh
-./do
-```
-
-Type a request, hit Enter. The agent loops over tool calls until it's done. Esc stops generation mid-turn, or quits when idle. Ctrl+C always force-quits.
 
 ### CLI mode
 
