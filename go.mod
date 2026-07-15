@@ -1,6 +1,6 @@
 module do
 
-go 1.25
+go 1.26
 
 require (
 	github.com/charmbracelet/bubbles v0.20.0
