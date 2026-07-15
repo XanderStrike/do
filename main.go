@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 	"unicode/utf8"
 
 	"github.com/charmbracelet/bubbles/spinner"
@@ -103,6 +104,8 @@ func initialModel() model {
 func systemPrompt(cwd, agentsContext string) string {
 	prompt := fmt.Sprintf(`You are a minimal terminal coding agent. You operate inside the directory: %s
 
+Current date and time: %s
+
 You have four tools:
 - read_file(path, start_line?, end_line?): read a file's contents; start_line/end_line (1-based, inclusive) are optional
 - write_file(path, content): write a file (creates parents, overwrites)
@@ -111,7 +114,7 @@ You have four tools:
 
 Use the tools to inspect, edit, and run code to fulfill the user's request. Be concise.
 Prefer reading files before editing. Prefer shell commands like ls, rg, git, jq to explore.
-When you make changes, summarize what you did briefly.`, cwd)
+When you make changes, summarize what you did briefly.`, cwd, time.Now().Format("2006-01-02 15:04:05 MST"))
 	if agentsContext != "" {
 		prompt += "\n\n" + agentsContext
 	}
