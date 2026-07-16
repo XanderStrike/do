@@ -74,6 +74,8 @@ func initialModel() model {
 	ta.CharLimit = 0
 	ta.ShowLineNumbers = false
 	ta.SetHeight(3)
+	ta.FocusedStyle.CursorLine = lipgloss.NewStyle()
+	ta.BlurredStyle.CursorLine = lipgloss.NewStyle()
 
 	sp := spinner.New()
 	sp.Spinner = spinner.Dot
