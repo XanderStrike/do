@@ -442,9 +442,12 @@ func (m model) View() string {
 	b.WriteString("\n")
 	b.WriteString(m.viewport.View())
 	b.WriteString("\n")
-	b.WriteString(dimStyle.Render(strings.Repeat("─", m.width)))
-	b.WriteString("\n")
-	b.WriteString(m.ta.View())
+	b.WriteString(lipgloss.NewStyle().
+		BorderTop(true).
+		BorderStyle(lipgloss.NormalBorder()).
+		BorderForeground(lipgloss.Color("241")).
+		Width(m.width).
+		Render(m.ta.View()))
 	return b.String()
 }
 
