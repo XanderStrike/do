@@ -193,10 +193,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				input := strings.TrimSpace(m.ta.Value())
 				m.ta.Reset()
 				if m.busy {
-					// Queue as steering — injected when the current turn ends.
+					// Queue as steering and interrupt the current generation
+					// so the correction is injected immediately.
 					m.steering = append(m.steering, input)
 					m.appendBlock(steerStyle.Render("↳ queued") + "\n" + input)
 					m.refreshViewport()
+					if m.cancel != nil {
+						m.cancel()
+					}
 					return m, nil
 				}
 				m.submit(input)
