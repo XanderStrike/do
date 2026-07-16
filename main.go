@@ -33,6 +33,7 @@ var (
 	resultStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
 	dimStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
 	errStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("203")).Bold(true)
+	steerStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("141")).Bold(true)
 )
 
 type model struct {
@@ -45,6 +46,7 @@ type model struct {
 	ta        textarea.Model
 	spinner   spinner.Model
 	busy      bool
+	steering  []string   // queued user messages to inject when the current turn ends
 	width     int
 	height    int
 	err       string
@@ -187,9 +189,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, tea.Quit
 		case tea.KeyEnter:
-			if !m.busy && m.ta.Value() != "" {
+			if m.ta.Value() != "" {
 				input := strings.TrimSpace(m.ta.Value())
 				m.ta.Reset()
+				if m.busy {
+					// Queue as steering — injected when the current turn ends.
+					m.steering = append(m.steering, input)
+					m.appendBlock(steerStyle.Render("↳ queued") + "\n" + input)
+					m.refreshViewport()
+					return m, nil
+				}
 				m.submit(input)
 				return m, nil
 			}
@@ -220,10 +229,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.appendBlock(errStyle.Render("error: " + msg.err.Error()))
 		m.refreshViewport()
 		m.idle()
+		m.flushSteering()
 
 	case doneMsg:
 		m.idle()
 		m.err = ""
+		m.flushSteering()
 	case stopMsg:
 		if msg.note != "" {
 			m.appendBlock(dimStyle.Render(msg.note))
@@ -231,6 +242,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.idle()
 		m.err = ""
+		m.flushSteering()
 	}
 
 	// Forward to textarea. Only forward non-key messages to the viewport —
@@ -266,6 +278,18 @@ func (m *model) idle() {
 	m.cancel = nil
 }
 
+// flushSteering submits the first queued steering message as a new turn, if
+// any. Called when the current turn ends (done or stopped) so the user's
+// queued input gets injected into the conversation.
+func (m *model) flushSteering() {
+	if len(m.steering) == 0 {
+		return
+	}
+	input := m.steering[0]
+	m.steering = m.steering[1:]
+	m.submit(input)
+}
+
 // resetSession deletes the persisted .do-session file and clears all
 // conversation history and rendered blocks, keeping only the system prompt.
 func (m *model) resetSession() {
@@ -273,6 +297,7 @@ func (m *model) resetSession() {
 	*m.conv = (*m.conv)[:1]
 	m.usage = nil
 	m.blocks = nil
+	m.steering = nil
 	m.refreshViewport()
 }
 
@@ -401,6 +426,9 @@ func (m model) View() string {
 	if m.usage != nil {
 		rest += fmt.Sprintf(" - %s↑ %s↓ tok",
 			comma(m.usage.PromptTokens), comma(m.usage.CompletionTokens))
+	}
+	if len(m.steering) > 0 {
+		rest += steerStyle.Render(fmt.Sprintf(" - %d queued", len(m.steering)))
 	}
 
 	var b strings.Builder
