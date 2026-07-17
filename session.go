@@ -24,8 +24,11 @@ func sessionPath(cwd string) string {
 
 // saveSession writes the conversation (excluding the system prompt at index 0)
 // and the last-known usage to the .do-session file in cwd. Silently ignores
-// errors — best-effort.
+// errors — best-effort. No-op when ephemeral mode is active.
 func saveSession(cwd string, conv *[]Message, usage *Usage) {
+	if ephemeral {
+		return
+	}
 	if len(*conv) <= 1 {
 		return
 	}

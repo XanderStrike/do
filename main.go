@@ -7,6 +7,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"os"
 	"os/exec"
@@ -35,6 +36,9 @@ var (
 	errStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("203")).Bold(true)
 	steerStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("141")).Bold(true)
 )
+
+// ephemeral disables session file read/write when set.
+var ephemeral bool
 
 type model struct {
 	llm       *LLMClient
@@ -92,14 +96,16 @@ func initialModel() model {
 		blocks:   []string{},
 	}
 
-	// Resume session if .do-session exists.
-	if prior, usage := loadSession(cwd); len(prior) > 0 {
-		msgs = append(msgs, prior...)
-		m.usage = usage
-		for _, msg := range prior {
-			m.blocks = append(m.blocks, renderHistoryBlock(msg))
+	// Resume session if .do-session exists (unless --ephemeral).
+	if !ephemeral {
+		if prior, usage := loadSession(cwd); len(prior) > 0 {
+			msgs = append(msgs, prior...)
+			m.usage = usage
+			for _, msg := range prior {
+				m.blocks = append(m.blocks, renderHistoryBlock(msg))
+			}
+			m.refreshViewport()
 		}
-		m.refreshViewport()
 	}
 
 	return m
@@ -542,8 +548,13 @@ func renderHistoryBlock(msg Message) string {
 }
 
 func main() {
-	if len(os.Args) > 1 {
-		runCLI(strings.Join(os.Args[1:], " "))
+	flag.BoolVar(&ephemeral, "ephemeral", false, "don't read or write the session file")
+	flag.BoolVar(&ephemeral, "e", false, "shorthand for --ephemeral")
+	flag.Parse()
+
+	args := flag.Args()
+	if len(args) > 0 {
+		runCLI(strings.Join(args, " "))
 		return
 	}
 	prog = tea.NewProgram(initialModel(), tea.WithAltScreen(), tea.WithMouseCellMotion())
@@ -561,9 +572,11 @@ func runCLI(prompt string) {
 	llm := newLLMClient()
 	msgs := []Message{{Role: "system", Content: systemPrompt(cwd, loadAgentsContext(cwd))}}
 
-	if prior, usage := loadSession(cwd); len(prior) > 0 {
-		msgs = append(msgs, prior...)
-		_ = usage
+	if !ephemeral {
+		if prior, usage := loadSession(cwd); len(prior) > 0 {
+			msgs = append(msgs, prior...)
+			_ = usage
+		}
 	}
 
 	msgs = append(msgs, Message{Role: "user", Content: prompt})
