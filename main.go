@@ -548,6 +548,17 @@ func renderHistoryBlock(msg Message) string {
 }
 
 func main() {
+	flag.Usage = func() {
+		out := flag.CommandLine.Output()
+		fmt.Fprintf(out, "Usage: %s [flags] [prompt]\n\n", os.Args[0])
+		fmt.Fprintf(out, "Run an interactive agent, or pass a prompt for non-interactive mode.\n\n")
+		fmt.Fprintf(out, "Flags:\n")
+		flag.PrintDefaults()
+		fmt.Fprintf(out, "\nEnvironment variables:\n")
+		fmt.Fprintf(out, "  DO_BASE_URL  OpenAI-compatible API base URL (default: https://api.openai.com/v1)\n")
+		fmt.Fprintf(out, "  DO_API_KEY   API key for the endpoint\n")
+		fmt.Fprintf(out, "  DO_MODEL     model name to use (default: gpt-4o)\n")
+	}
 	flag.BoolVar(&ephemeral, "ephemeral", false, "don't read or write the session file")
 	flag.BoolVar(&ephemeral, "e", false, "shorthand for --ephemeral")
 	flag.Parse()
